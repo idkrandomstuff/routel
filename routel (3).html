@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Routel</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;700;800&display=swap">
+<style>
+:root{--bg:#eceae4;--ink:#1d2125;--card:#fff;--line:#c9c6bd;--green:#00704a;--yellow:#f2b705;--gray:#7b8087;--chip:#dedbd2;--water:#bcd3dd;--land:#f6f4ee;--road:#bdb9ac;--hl:#00a86b;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15181b;--ink:#eceae4;--card:#22272b;--line:#3a4045;--chip:#2f353a;--water:#1d3140;--land:#1b2025;--road:#4a545e}}
+:root[data-theme="dark"]{--bg:#15181b;--ink:#eceae4;--card:#22272b;--line:#3a4045;--chip:#2f353a;--water:#1d3140;--land:#1b2025;--road:#4a545e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Barlow,"Helvetica Neue",Arial,sans-serif;font-weight:500}
+main{max-width:520px;margin:0 auto;padding:14px 14px 40px}
+.sign{background:var(--green);color:#fff;border:3px solid #fff;outline:3px solid var(--green);border-radius:10px;padding:10px 16px;margin:6px 3px 16px;display:flex;justify-content:space-between;align-items:center}
+.sign h1{margin:0;font-size:34px;font-weight:800;letter-spacing:.5px}
+.sign span{font-size:14px;text-align:right;line-height:1.2}
+.map{display:block;width:100%;aspect-ratio:4/3;border-radius:10px;border:1px solid var(--line);background:var(--land);margin-bottom:10px}
+.map *{vector-effect:non-scaling-stroke}
+.map .rd{fill:none;stroke:var(--road);stroke-linecap:round;stroke-linejoin:round}
+.map .f{stroke-width:3.5px}.map .s{stroke-width:1.8px}
+.map .hl{fill:none;stroke:var(--hl);stroke-width:6px;stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity .5s}
+.map .hl.on{opacity:1}
+.map .w{fill:var(--water)}
+.trip{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:14px;line-height:1.35}
+.trip b{font-weight:800}
+.trip small{color:var(--gray);display:block;margin-top:4px;font-size:14px}
+#rows{display:grid;gap:8px}
+.row{display:flex;gap:8px;align-items:center}
+.n{width:18px;text-align:center;color:var(--gray);font-weight:700;font-size:14px}
+.slot{flex:1;min-height:46px;border:2px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;padding:4px 6px;text-align:center;font-weight:700;font-size:15px;line-height:1.1;background:var(--card)}
+.slot.cur{border-color:var(--ink)}
+.c-g{background:var(--green);border-color:var(--green);color:#fff}
+.c-y{background:var(--yellow);border-color:var(--yellow);color:#1d2125}
+.c-x{background:var(--gray);border-color:var(--gray);color:#fff}
+#chips{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0 10px}
+.chip{border:0;border-radius:8px;background:var(--chip);color:var(--ink);font:inherit;font-weight:700;font-size:14px;padding:9px 10px;cursor:pointer}
+.chip:focus-visible,button:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+.chip.c-g,.chip.c-y,.chip.c-x{color:inherit}
+.chip.c-g{color:#fff}.chip.c-x{color:#fff;opacity:.55}
+.chip:disabled{opacity:.4;cursor:default}
+.bar{display:flex;gap:8px}
+.bar button{flex:1;border:0;border-radius:8px;padding:12px;font:inherit;font-weight:800;font-size:16px;cursor:pointer;background:var(--chip);color:var(--ink)}
+.bar #go{background:var(--ink);color:var(--bg);flex:2}
+.bar button:disabled{opacity:.35;cursor:default}
+#msg{margin-top:16px;padding:14px;border-radius:10px;background:var(--card);border:1px solid var(--line);display:none;line-height:1.4}
+#msg pre{font:inherit;margin:8px 0;white-space:pre-wrap}
+#msg button{border:0;border-radius:8px;padding:10px 14px;font:inherit;font-weight:800;margin:4px 6px 0 0;cursor:pointer;background:var(--green);color:#fff}
+.legend{margin-top:14px;font-size:14px;color:var(--gray)}
+</style>
+</head>
+<body>
+<main>
+  <div class="sign"><h1>Routel</h1><span>Name the roads.<br>Get there in 6.</span></div>
+  <svg id="map" class="map" role="img" aria-label="Map of Los Angeles showing the trip"></svg>
+  <div class="trip" id="trip"></div>
+  <div id="rows" aria-live="polite"></div>
+  <div id="chips"></div>
+  <div class="bar"><button id="del">Delete</button><button id="go" disabled>Check route</button></div>
+  <div id="msg"></div>
+  <p class="legend">Green: right road, right order. Yellow: on the route, wrong spot. Gray: not on the route.</p>
+</main>
+<script>
+const MAX=6;
+const P=[
+["Santa Monica Pier","Dodger Stadium",["I-10","I-110","Stadium Way"]],
+["LAX","Hollywood Bowl",["I-105","I-110","US-101"]],
+["Venice Beach","Crypto.com Arena",["Venice Blvd","I-10","Figueroa St"]],
+["Universal Studios Hollywood","Santa Monica Pier",["US-101","I-405","I-10"]],
+["Rose Bowl","LAX",["I-210","I-110","I-105"]],
+["Hollywood & Highland","Dodger Stadium",["Hollywood Blvd","Sunset Blvd","Stadium Way"]],
+["The Getty Center","LAX",["I-405","Century Blvd"]],
+["Griffith Observatory","Santa Monica Pier",["Vermont Ave","I-10"]],
+["LAX","Santa Monica Pier",["Century Blvd","I-405","I-10"]],
+["Union Station","Dodger Stadium",["US-101","I-110","Stadium Way"]],
+["Hollywood Sign","LAX",["US-101","I-405","Century Blvd"]],
+["Rose Bowl","Santa Monica Pier",["CA-134","US-101","I-405","I-10"]],
+["Griffith Observatory","Hollywood & Highland",["Vermont Ave","Hollywood Blvd"]],
+["Venice Beach","LAX",["Venice Blvd","I-405","Century Blvd"]],
+["Hollywood Bowl","Crypto.com Arena",["US-101","I-110","Figueroa St"]],
+["Crypto.com Arena","Santa Monica Pier",["Figueroa St","I-10"]],
+["The Getty Center","Hollywood Bowl",["I-405","US-101"]],
+["Dodger Stadium","LAX",["Stadium Way","I-110","I-105"]]
+];
+const ROADS=["I-5","I-10","I-105","I-110","I-210","I-405","US-101","CA-134","CA-1 (PCH)","CA-60","Sunset Blvd","Hollywood Blvd","Wilshire Blvd","Santa Monica Blvd","Venice Blvd","Sepulveda Blvd","La Cienega Blvd","La Brea Ave","Vermont Ave","Figueroa St","Century Blvd","Stadium Way","Highland Ave","Olympic Blvd","Melrose Ave","Pico Blvd","Western Ave","Crenshaw Blvd","Mulholland Dr","Ocean Ave"];
+let idx,ans,guesses,cur,done,daily=true;
+const $=id=>document.getElementById(id);
+
+const LM={"Union Station":[-118.2365,34.056],"Hollywood Sign":[-118.3217,34.1341],"Santa Monica Pier":[-118.496,34.009],"LAX":[-118.408,33.942],"Venice Beach":[-118.473,33.985],"Universal Studios Hollywood":[-118.353,34.138],"Rose Bowl":[-118.168,34.161],"Hollywood & Highland":[-118.339,34.102],"The Getty Center":[-118.475,34.078],"Griffith Observatory":[-118.3,34.119],"Dodger Stadium":[-118.24,34.074],"Hollywood Bowl":[-118.339,34.112],"Crypto.com Arena":[-118.267,34.043]};
+const G={"I-10":[-118.495,34.011,-118.4,34.03,-118.35,34.037,-118.27,34.036,-118.24,34.04,-118.2,34.05,-118.1,34.07],
+"I-110":[-118.28,33.9,-118.278,33.95,-118.275,34,-118.268,34.04,-118.255,34.055,-118.24,34.07,-118.22,34.09,-118.2,34.12,-118.18,34.15],
+"I-105":[-118.4,33.929,-118.3,33.928,-118.2,33.915,-118.1,33.915],
+"I-405":[-118.4,33.9,-118.395,33.95,-118.39,34,-118.42,34.025,-118.47,34.07,-118.475,34.1,-118.47,34.15,-118.47,34.27],
+"US-101":[-118.24,34.055,-118.26,34.07,-118.3,34.09,-118.335,34.115,-118.35,34.13,-118.37,34.145,-118.4,34.15,-118.47,34.155,-118.6,34.16],
+"I-210":[-118.3,34.27,-118.22,34.19,-118.16,34.148,-118.1,34.14],
+"CA-134":[-118.37,34.145,-118.3,34.15,-118.25,34.155,-118.2,34.15,-118.16,34.148],
+"I-5":[-118.1,33.92,-118.2,33.98,-118.22,34.03,-118.23,34.06,-118.215,34.1,-118.25,34.14,-118.29,34.18,-118.35,34.26],
+"CA-60":[-118.2,34.04,-118.1,34.03],
+"CA-1 (PCH)":[-118.5,34,-118.55,34.03,-118.6,34.04],
+"Sunset Blvd":[-118.495,34.045,-118.45,34.075,-118.4,34.09,-118.34,34.098,-118.3,34.098,-118.26,34.077,-118.245,34.07],
+"Hollywood Blvd":[-118.38,34.101,-118.34,34.102,-118.3,34.102,-118.285,34.1],
+"Wilshire Blvd":[-118.5,34.017,-118.45,34.055,-118.4,34.067,-118.35,34.062,-118.3,34.062,-118.27,34.057,-118.25,34.052],
+"Santa Monica Blvd":[-118.49,34.025,-118.45,34.045,-118.4,34.066,-118.35,34.09,-118.3,34.09,-118.27,34.09],
+"Venice Blvd":[-118.475,33.985,-118.43,34,-118.38,34.025,-118.34,34.03,-118.29,34.035,-118.27,34.04],
+"Sepulveda Blvd":[-118.4,33.93,-118.41,33.99,-118.42,34.03,-118.44,34.05,-118.47,34.09,-118.47,34.15],
+"La Cienega Blvd":[-118.373,33.93,-118.373,34.03,-118.375,34.09,-118.378,34.1],
+"La Brea Ave":[-118.345,33.93,-118.345,34.03,-118.344,34.1],
+"Vermont Ave":[-118.292,33.92,-118.292,34.02,-118.292,34.1,-118.29,34.115],
+"Figueroa St":[-118.282,33.93,-118.275,34,-118.268,34.04,-118.25,34.06,-118.23,34.09,-118.2,34.12],
+"Century Blvd":[-118.42,33.945,-118.3,33.945,-118.2,33.945],
+"Stadium Way":[-118.262,34.076,-118.25,34.08,-118.24,34.074],
+"Highland Ave":[-118.341,33.99,-118.339,34.05,-118.339,34.1,-118.338,34.112,-118.33,34.13],
+"Olympic Blvd":[-118.48,34.03,-118.4,34.05,-118.34,34.058,-118.27,34.045,-118.24,34.03],
+"Melrose Ave":[-118.4,34.083,-118.34,34.083,-118.3,34.083,-118.28,34.083],
+"Pico Blvd":[-118.47,34.012,-118.43,34.03,-118.37,34.042,-118.32,34.045,-118.27,34.037],
+"Western Ave":[-118.309,33.92,-118.309,34.1],
+"Crenshaw Blvd":[-118.327,33.92,-118.327,34.06],
+"Mulholland Dr":[-118.475,34.12,-118.42,34.125,-118.38,34.13,-118.345,34.125],
+"Ocean Ave":[-118.5,34.03,-118.497,34.01,-118.495,34.005]};
+const X=lo=>(lo+118.75)/0.65*770,Y=la=>(34.25-la)/0.35*500;
+const pth=a=>{let d="";for(let i=0;i<a.length;i+=2)d+=(i?"L":"M")+X(a[i]).toFixed(1)+" "+Y(a[i+1]).toFixed(1);return d};
+const SEA=[-118.7,34.03,-118.6,34.037,-118.54,34.03,-118.505,34.015,-118.495,34.005,-118.485,33.99,-118.47,33.975,-118.44,33.955,-118.43,33.93,-118.42,33.89,-118.9,33.89,-118.9,34.03];
+function mapInit(i){
+  const o=LM[P[i][0]],d=LM[P[i][1]],ox=X(o[0]),oy=Y(o[1]),dx=X(d[0]),dy=Y(d[1]);
+  let w=Math.max(Math.abs(ox-dx)*1.6,170),h=w*.75;
+  if(Math.abs(oy-dy)*1.7>h){h=Math.abs(oy-dy)*1.7;w=h/.75}
+  const vx=(ox+dx)/2-w/2,vy=(oy+dy)/2-h/2,r=w*.016;
+  let s=`<polygon class="w" points="${SEA.map((v,k)=>k%2?Y(v):X(v)).join(" ")}"/>`;
+  const names=Object.keys(G);
+  s+=names.map(n=>`<path class="rd ${/^(I-|US-|CA-)/.test(n)?"f":"s"}" d="${pth(G[n])}"/>`).join("");
+  s+=names.map(n=>`<path class="hl" data-r="${n}" d="${pth(G[n])}"/>`).join("");
+  s+=Object.values(LM).map(p=>`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="${r*.5}" fill="var(--gray)" opacity=".6"/>`).join("");
+  s+=`<circle cx="${ox}" cy="${oy}" r="${r}" fill="#1d2125" stroke="#fff" stroke-width="2.5"/><rect x="${dx-r}" y="${dy-r}" width="${2*r}" height="${2*r}" fill="#1d2125" stroke="#fff" stroke-width="2.5"/>`;
+  $("map").setAttribute("viewBox",`${vx} ${vy} ${w} ${h}`);$("map").innerHTML=s;
+}
+function mapUpdate(){
+  const ok=new Set();
+  guesses.forEach(g=>score(g).forEach((v,i)=>{if(v==="g")ok.add(g[i])}));
+  if(done)ans.forEach(r=>ok.add(r));
+  document.querySelectorAll("#map .hl").forEach(p=>p.classList.toggle("on",ok.has(p.dataset.r)));
+}
+function start(i,isDaily){
+  idx=i;daily=isDaily;ans=P[i][2];guesses=[];cur=[];done=false;
+  $("trip").innerHTML=`<b>${P[i][0]}</b> to <b>${P[i][1]}</b><small>Pick ${ans.length} road${ans.length>1?"s":""} in driving order. Circle is the start, square is the finish.</small>`;
+  $("msg").style.display="none";$("msg").innerHTML="";
+  mapInit(i);draw();
+}
+function score(g){return g.map((r,i)=>r===ans[i]?"g":ans.includes(r)?"y":"x")}
+function draw(){
+  let h="";
+  for(let r=0;r<MAX;r++){
+    h+=`<div class="row"><div class="n">${r+1}</div>`;
+    const g=guesses[r],s=g&&score(g);
+    for(let c=0;c<ans.length;c++){
+      if(g)h+=`<div class="slot c-${s[c]}">${g[c]}</div>`;
+      else if(r===guesses.length&&!done)h+=`<div class="slot cur">${cur[c]||""}</div>`;
+      else h+=`<div class="slot"></div>`;
+    }
+    h+="</div>";
+  }
+  $("rows").innerHTML=h;
+  const best={};
+  guesses.forEach(g=>score(g).forEach((v,i)=>{const r=g[i];if(best[r]!=="g"&&!(best[r]==="y"&&v==="x"))best[r]=v}));
+  $("chips").innerHTML=ROADS.map(r=>`<button class="chip ${best[r]?"c-"+best[r]:""}" data-r="${r}" ${done||cur.includes(r)?"disabled":""}>${r}</button>`).join("");
+  mapUpdate();
+  $("go").disabled=done||cur.length!==ans.length;
+  $("del").disabled=done||!cur.length;
+}
+$("chips").onclick=e=>{const r=e.target.dataset&&e.target.dataset.r;if(r&&!done&&cur.length<ans.length&&!cur.includes(r)){cur.push(r);draw()}};
+$("del").onclick=()=>{cur.pop();draw()};
+$("go").onclick=()=>{
+  guesses.push(cur);cur=[];
+  const won=guesses[guesses.length-1].every((r,i)=>r===ans[i]);
+  if(won||guesses.length===MAX){done=true;draw();end(won)}else draw();
+};
+function end(won){
+  const grid=guesses.map(g=>score(g).map(v=>({g:"🟩",y:"🟨",x:"⬜"})[v]).join("")).join("\n");
+  const txt=`Routel ${won?guesses.length:"X"}/${MAX}\n${P[idx][0]} → ${P[idx][1]}\n${grid}`;
+  const m=$("msg");m.style.display="block";
+  m.innerHTML=`<b>${won?"You made it!":"Out of gas."}</b> ${won?`Solved in ${guesses.length}.`:""}<br>Route: ${ans.join(" → ")}<pre></pre><button id="sh">Copy result</button><button id="rnd">Random route</button>`;
+  m.querySelector("pre").textContent=txt;
+  $("sh").onclick=()=>{try{navigator.clipboard.writeText(txt);$("sh").textContent="Copied"}catch(e){}};
+  $("rnd").onclick=()=>start(Math.floor(Math.random()*P.length),false);
+}
+const day=Math.floor((Date.now()-new Date().getTimezoneOffset()*60000)/864e5);
+start(day%P.length,true);
+</script>
+</body>
+</html>
